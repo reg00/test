@@ -1,0 +1,37 @@
+[gd_scene load_steps=5 format=3 uid="uid://dcwrkkc4yaakn"]
+
+[ext_resource type="Script" uid="uid://cll15dk5ghdsg" path="res://Scripts/Enemy.cs" id="1_pjquw"]
+[ext_resource type="Texture2D" uid="uid://cekevmox6646r" path="res://icon.svg" id="2_663o1"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ovk8a"]
+size = Vector2(126, 126)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pjquw"]
+size = Vector2(108, 126)
+
+[node name="Enemy" type="CharacterBody2D"]
+collision_mask = 7
+script = ExtResource("1_pjquw")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_663o1")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." groups=["HurtBox"]]
+shape = SubResource("RectangleShape2D_ovk8a")
+
+[node name="DetectArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectArea"]
+position = Vector2(121, 0)
+shape = SubResource("RectangleShape2D_pjquw")
+
+[node name="WallRay" type="RayCast2D" parent="."]
+target_position = Vector2(84, 0)
+collision_mask = 4
+
+[node name="FloorRay" type="RayCast2D" parent="."]
+position = Vector2(67, 0)
+target_position = Vector2(1, 72)
+collision_mask = 4

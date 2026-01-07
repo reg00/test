@@ -9,6 +9,7 @@ public partial class PlayerController : CharacterBody2D
 
 	// ========== NODES / STATE ==========
 	private AnimatedSprite2D _animatedSprite;
+	private AnimationPlayer _animationPlayer;
 
 	private bool _isFacingRight = true;
 
@@ -40,16 +41,17 @@ public partial class PlayerController : CharacterBody2D
 	public override void _Ready()
 	{
 		_animatedSprite = GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+		_animationPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
 
 		_airJumpsLeft = _playerData.ExtraAirJumps;
 		_coyoteTimer = 0f;
 
-		_animatedSprite.AnimationFinished += OnAnimationFinished;
+		_animationPlayer.AnimationFinished += OnAnimationFinished;
 	}
 
 	public override void _ExitTree()
 	{
-		_animatedSprite.AnimationFinished -= OnAnimationFinished;
+		_animationPlayer.AnimationFinished -= OnAnimationFinished;
 	}
 
 	public override void _PhysicsProcess(double delta)
@@ -134,7 +136,7 @@ public partial class PlayerController : CharacterBody2D
 		_attackQueued = false;
 
 		var anim = $"{_playerData.AttackAnimPrefix}{_comboIndex + 1}";
-		_animatedSprite.Play(anim);
+		_animationPlayer.Play(anim);
 	}
 
 	private void AdvanceCombo()
@@ -145,12 +147,20 @@ public partial class PlayerController : CharacterBody2D
 			_comboIndex = 0;
 	}
 
-	private void OnAnimationFinished()
+	// Сюда придёт имя завершившейся анимации [web:206][web:202]
+	private void OnAnimationFinished(StringName animName)
 	{
+		// Нас интересуют только удары (по префиксу).
+		// Например AttackAnimPrefix = "attack_" -> "attack_1", "attack_2"... 
+		// var name = animName.ToString();
+		// if (!name.StartsWith(_playerData.AttackAnimPrefix))
+		// 	return;
+
 		if (!_isAttacking)
 			return;
 
 		_isAttacking = false;
+
 		AdvanceCombo();
 
 		if (_attackQueued && _comboResetTimer > 0f)
@@ -408,8 +418,8 @@ public partial class PlayerController : CharacterBody2D
 			_ => "idle"
 		};
 
-		if (_animatedSprite.Animation != anim)
-			_animatedSprite.Play(anim);
+		if (_animationPlayer.CurrentAnimation != anim)
+			_animationPlayer.Play(anim);
 	}
 
 	// ========== UTILS ==========

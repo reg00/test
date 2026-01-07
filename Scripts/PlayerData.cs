@@ -29,10 +29,7 @@ public partial class PlayerData : Resource
 
     [Export] public float WallSlideFallMultiplier = 0.3f;
     
-    
     [Export] public float WallJumpForce  = 500f;
     [Export] public float WallJumpPush  = 300f;
     [Export] public float WallJumpLockTime  = 0.15f;
-    
-    
 }
