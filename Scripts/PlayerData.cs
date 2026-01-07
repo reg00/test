@@ -11,7 +11,7 @@ public partial class PlayerData : Resource
     [Export] public float Gravity = 800.0f;
     [Export] public float MaxFallSpeed = 500.0f;
 
-    [Export] public float DashForce = 400.0f;
+    [Export] public float DashForce = 600.0f;
     [Export] public float DashDuration = 0.3f;
 
     [Export] public int ExtraAirJumps = 1;
@@ -26,4 +26,13 @@ public partial class PlayerData : Resource
     [Export] public int ComboHits = 3;              // сколько ударов в серии (может меняться)
     [Export] public float ComboResetTime = 1f;    // через сколько секунд без атак сбрасывать на 1-й удар
     [Export] public string AttackAnimPrefix = "attack_"; // attack_1, attack_2, attack_3...
+
+    [Export] public float WallSlideFallMultiplier = 0.3f;
+    
+    
+    [Export] public float WallJumpForce  = 500f;
+    [Export] public float WallJumpPush  = 300f;
+    [Export] public float WallJumpLockTime  = 0.15f;
+    
+    
 }

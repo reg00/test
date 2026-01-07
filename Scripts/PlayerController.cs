@@ -4,13 +4,16 @@ using test2.Scripts;
 // ReSharper disable once CheckNamespace
 public partial class PlayerController : CharacterBody2D
 {
-	// ========== ЭКСПОРТИРУЕМЫЕ ПАРАМЕТРЫ ==========
+	// ========== EXPORTED ==========
 	[Export] private PlayerData _playerData;
 
-	// ========== ПРИВАТНЫЕ ПЕРЕМЕННЫЕ ==========
+	// ========== NODES / STATE ==========
 	private AnimatedSprite2D _animatedSprite;
 
 	private bool _isFacingRight = true;
+
+	// Cached input per frame
+	private float _axisX;
 
 	// Dash
 	private bool _isDashing;
@@ -23,9 +26,14 @@ public partial class PlayerController : CharacterBody2D
 
 	// Attack / Combo
 	private bool _isAttacking;
-	private int _comboIndex;          // 0..ComboHits-1
-	private float _comboResetTimer;   // таймер до сброса комбо
-	private bool _attackQueued;       // если нажали attack во время удара — ставим в очередь следующий
+	private int _comboIndex;
+	private float _comboResetTimer;
+	private bool _attackQueued;
+
+	// Wall slide / wall jump
+	private bool _isWallSliding;
+	private Vector2 _wallNormal;     // last wall normal (valid after MoveAndSlide when on wall) [page:1]
+	private float _wallJumpLock;     // optional: short lock of X control after wall jump
 
 	private PlayerState _state = PlayerState.Idle;
 
@@ -46,41 +54,47 @@ public partial class PlayerController : CharacterBody2D
 
 	public override void _PhysicsProcess(double delta)
 	{
-		float dt = (float)delta;
+		var dt = (float)delta;
 
-		UpdateComboTimer(dt);
+		TickWallJumpLock(dt);
 
-		UpdateCoyote(dt);
+		ReadMoveInput();
 		ReadAttackInput();
 		ReadDashInput();
 
-		ApplyShapedGravity(dt);
-		ApplyJump();
+		UpdateComboTimer(dt);
+		UpdateCoyote(dt);
 
+		// Vertical / special moves
+		ApplyShapedGravity(dt);
+		ApplyJumpAndWallJump(); // ground jump / double jump / wall jump
+
+		// Horizontal moves
 		UpdateDash(dt);
 		ApplyMoveXInstant();
 
+		// Physics step (updates collision flags + may modify Velocity) [page:1]
+		MoveAndSlide();
+
+		// Post-collision features depending on wall info (IsOnWall/GetWallNormal) [page:1]
+		UpdateWallSlide();
+
 		UpdateState();
 		UpdateAnimation();
-
-		MoveAndSlide(); // движение через Velocity + MoveAndSlide() [page:1]
 	}
 
-	// ========== COMBO TIMER ==========
-	private void UpdateComboTimer(float dt)
+	// ========== INPUT ==========
+	private void ReadMoveInput()
 	{
-		if (_comboResetTimer <= 0f)
-			return;
-
-		_comboResetTimer = Mathf.Max(0f, _comboResetTimer - dt);
-		if (_comboResetTimer <= 0f)
-		{
-			_comboIndex = 0;
-			_attackQueued = false;
-		}
+		_axisX = Input.GetAxis("move_left", "move_right");
 	}
 
-	// ========== ATTACK INPUT ==========
+	private void ReadDashInput()
+	{
+		if (Input.IsActionJustPressed("dash") && _canDash)
+			StartDash();
+	}
+
 	private void ReadAttackInput()
 	{
 		if (!Input.IsActionJustPressed("attack"))
@@ -97,21 +111,35 @@ public partial class PlayerController : CharacterBody2D
 		StartAttack();
 	}
 
+	// ========== COMBO ==========
+	private void UpdateComboTimer(float dt)
+	{
+		if (_comboResetTimer <= 0f)
+			return;
+
+		_comboResetTimer = Mathf.Max(0f, _comboResetTimer - dt);
+		if (_comboResetTimer <= 0f)
+		{
+			_comboIndex = 0;
+			_attackQueued = false;
+		}
+	}
+
 	private void StartAttack()
 	{
-		int hits = Mathf.Max(1, _playerData.ComboHits);
+		var hits = Mathf.Max(1, _playerData.ComboHits);
 		_comboIndex = Mathf.Clamp(_comboIndex, 0, hits - 1);
 
 		_isAttacking = true;
 		_attackQueued = false;
 
-		string anim = $"{_playerData.AttackAnimPrefix}{_comboIndex + 1}";
+		var anim = $"{_playerData.AttackAnimPrefix}{_comboIndex + 1}";
 		_animatedSprite.Play(anim);
 	}
 
 	private void AdvanceCombo()
 	{
-		int hits = Mathf.Max(1, _playerData.ComboHits);
+		var hits = Mathf.Max(1, _playerData.ComboHits);
 		_comboIndex++;
 		if (_comboIndex >= hits)
 			_comboIndex = 0;
@@ -123,7 +151,6 @@ public partial class PlayerController : CharacterBody2D
 			return;
 
 		_isAttacking = false;
-
 		AdvanceCombo();
 
 		if (_attackQueued && _comboResetTimer > 0f)
@@ -142,17 +169,10 @@ public partial class PlayerController : CharacterBody2D
 		_coyoteTimer = Mathf.Max(0f, _coyoteTimer - dt);
 	}
 
-	// ========== INPUT (DASH) ==========
-	private void ReadDashInput()
-	{
-		if (Input.IsActionJustPressed("dash") && _canDash)
-			StartDash();
-	}
-
 	// ========== GRAVITY (SHAPED) ==========
 	private void ApplyShapedGravity(float dt)
 	{
-		// Дэш строго горизонтальный: без гравитации, Y фиксируем в 0
+		// Dash is purely horizontal
 		if (_isDashing)
 		{
 			Velocity = Velocity with { Y = 0f };
@@ -163,8 +183,8 @@ public partial class PlayerController : CharacterBody2D
 
 		if (IsOnFloor())
 		{
-			if (v.Y > 0)
-				v.Y = 0;
+			if (v.Y > 0f)
+				v.Y = 0f;
 
 			_airJumpsLeft = _playerData.ExtraAirJumps;
 			_canDash = true;
@@ -173,16 +193,15 @@ public partial class PlayerController : CharacterBody2D
 			return;
 		}
 
-		float g = _playerData.Gravity;
+		var g = _playerData.Gravity;
 
 		if (v.Y < 0f)
 		{
-			// Подъём: ближе к вершине (v.Y -> 0) сильнее “гасим” скорость вверх
-			float progress = Mathf.Clamp(
+			var progress = Mathf.Clamp(
 				1f - (Mathf.Abs(v.Y) / Mathf.Max(1f, _playerData.JumpForce)),
 				0f, 1f);
 
-			float ascentMult = Mathf.Lerp(
+			var ascentMult = Mathf.Lerp(
 				_playerData.AscentGravityMultiplierMin,
 				_playerData.AscentGravityMultiplierMax,
 				progress);
@@ -191,7 +210,6 @@ public partial class PlayerController : CharacterBody2D
 		}
 		else
 		{
-			// Падение: сильнее тянем вниз
 			g *= _playerData.FallGravityMultiplier;
 		}
 
@@ -199,14 +217,14 @@ public partial class PlayerController : CharacterBody2D
 		Velocity = v;
 	}
 
-	// ========== JUMP (COYOTE + DOUBLE) ==========
-	private void ApplyJump()
+	// ========== JUMP (GROUND + DOUBLE + WALL) ==========
+	private void ApplyJumpAndWallJump()
 	{
 		if (!Input.IsActionJustPressed("jump"))
 			return;
 
-		bool canGroundJump = IsOnFloor() || _coyoteTimer > 0f;
-
+		// 1) Ground/coyote jump first
+		var canGroundJump = IsOnFloor() || _coyoteTimer > 0f;
 		if (canGroundJump)
 		{
 			Velocity = Velocity with { Y = -_playerData.JumpForce };
@@ -215,33 +233,79 @@ public partial class PlayerController : CharacterBody2D
 			return;
 		}
 
-		if (_airJumpsLeft > 0)
-		{
-			_airJumpsLeft--;
+		// 2) Wall jump (requires wall info from LAST MoveAndSlide) [page:1]
+		// This means wall jump will work reliably while wall sliding (because wall slide is computed after MoveAndSlide).
+		// If you want it to work the instant you touch the wall, we can add raycasts.
+		if (TryWallJump())
+			return;
 
-			// Ключевая правка: если падаем, сначала гасим скорость падения,
-			// иначе маленький airJumpForce может почти не ощущаться. [page:1]
-			var v = Velocity;
-			if (v.Y > 0f)
-				v.Y = 0f;
+		// 3) Air jump
+		if (_airJumpsLeft <= 0)
+			return;
 
-			float airJumpForce = _playerData.JumpForce * _playerData.AirJumpMultiplier; // например 0.5
-			v.Y = -airJumpForce;
+		_airJumpsLeft--;
 
-			Velocity = v;
-			_state = PlayerState.Jumping;
-		}
+		var v = Velocity;
+		if (v.Y > 0f)
+			v.Y = 0f;
+
+		var airJumpForce = _playerData.JumpForce * _playerData.AirJumpMultiplier;
+		v.Y = -airJumpForce;
+
+		Velocity = v;
+		_state = PlayerState.Jumping;
 	}
 
-	// ========== MOVE X (INSTANT STOP) ==========
+	private bool TryWallJump()
+	{
+		// Only in air + must have wall normal from previous physics step [page:1]
+		if (IsOnFloor())
+			return false;
+
+		if (_wallNormal == Vector2.Zero)
+			return false;
+
+		// Require pressing toward the wall (same rule as wall slide)
+		var pressingIntoWall =
+			Mathf.Abs(_axisX) > 0.1f &&
+			Mathf.Sign(_axisX) == -Mathf.Sign(_wallNormal.X);
+
+		if (!pressingIntoWall)
+			return false;
+
+		// Push away from wall: normal points out of wall [page:1]
+		var pushX = _wallNormal.X * _playerData.WallJumpPush;
+		_canDash = true;
+
+		Velocity = new Vector2(pushX, -_playerData.WallJumpForce);
+
+		_isWallSliding = false;
+		_coyoteTimer = 0f;
+
+		// Optional short lock so player doesn't instantly override push with input
+		_wallJumpLock = Mathf.Max(0f, _playerData.WallJumpLockTime);
+
+		_state = PlayerState.Jumping;
+		return true;
+	}
+
+	private void TickWallJumpLock(float dt)
+	{
+		if (_wallJumpLock > 0f)
+			_wallJumpLock = Mathf.Max(0f, _wallJumpLock - dt);
+	}
+
+	// ========== MOVE X (INSTANT) ==========
 	private void ApplyMoveXInstant()
 	{
 		if (_isDashing)
 			return;
 
-		float axis = Input.GetAxis("move_left", "move_right");
-		float x = axis * _playerData.Speed;
+		// Optional: stabilize wall jump push
+		if (_wallJumpLock > 0f)
+			return;
 
+		var x = _axisX * _playerData.Speed;
 		Velocity = Velocity with { X = x };
 
 		if (x > 0.1f && !_isFacingRight) FlipSprite(true);
@@ -255,7 +319,7 @@ public partial class PlayerController : CharacterBody2D
 		_canDash = false;
 		_dashTimer = 0f;
 
-		float dir = _isFacingRight ? 1f : -1f;
+		var dir = _isFacingRight ? 1f : -1f;
 		Velocity = new Vector2(dir * _playerData.DashForce, 0f);
 	}
 
@@ -265,30 +329,58 @@ public partial class PlayerController : CharacterBody2D
 			return;
 
 		_dashTimer += dt;
-		if (_dashTimer >= _playerData.DashDuration)
-		{
-			_isDashing = false;
-			_dashTimer = 0f;
+		if (_dashTimer < _playerData.DashDuration)
+			return;
 
-			float axis = Input.GetAxis("move_left", "move_right");
-			Velocity = Velocity with { X = axis * _playerData.Speed };
-		}
+		_isDashing = false;
+		_dashTimer = 0f;
+
+		Velocity = Velocity with { X = _axisX * _playerData.Speed };
+	}
+
+	// ========== WALL SLIDE ==========
+	private void UpdateWallSlide()
+	{
+		_isWallSliding = false;
+		_wallNormal = Vector2.Zero;
+
+		if (_isDashing || _isAttacking)
+			return;
+
+		// IsOnWall/GetWallNormal are valid after MoveAndSlide() [page:1]
+		var inAir = !IsOnFloor();
+		var touchingWall = IsOnWall();
+		var falling = Velocity.Y > 0f;
+
+		if (!(inAir && touchingWall && falling))
+			return;
+
+		var wallNormal = GetWallNormal(); // [page:1]
+		_wallNormal = wallNormal;
+
+		var pressingIntoWall =
+			Mathf.Abs(_axisX) > 0.1f &&
+			Mathf.Sign(_axisX) == -Mathf.Sign(wallNormal.X);
+
+		if (!pressingIntoWall)
+			return;
+
+		_isWallSliding = true;
+
+		// Instant clamp fall speed by multiplier
+		var mult = Mathf.Clamp(_playerData.WallSlideFallMultiplier, 0f, 1f);
+		var wallSlideMaxFall = _playerData.MaxFallSpeed * mult;
+
+		if (Velocity.Y > wallSlideMaxFall)
+			Velocity = Velocity with { Y = wallSlideMaxFall };
 	}
 
 	// ========== STATE ==========
 	private void UpdateState()
 	{
-		if (_isDashing)
-		{
-			_state = PlayerState.Dashing;
-			return;
-		}
-
-		if (_isAttacking)
-		{
-			_state = PlayerState.Attacking;
-			return;
-		}
+		if (_isDashing) { _state = PlayerState.Dashing; return; }
+		if (_isAttacking) { _state = PlayerState.Attacking; return; }
+		if (_isWallSliding) { _state = PlayerState.WallSliding; return; }
 
 		if (!IsOnFloor())
 		{
@@ -302,17 +394,17 @@ public partial class PlayerController : CharacterBody2D
 	// ========== ANIMATION ==========
 	private void UpdateAnimation()
 	{
-		// Пока атакуем — анимацию атак задаёт StartAttack(), чтобы движение/прыжок её не перебивали
 		if (_isAttacking)
 			return;
 
-		string anim = _state switch
+		var anim = _state switch
 		{
 			PlayerState.Idle => "idle",
 			PlayerState.Running => "move",
 			PlayerState.Jumping => "jump_up",
 			PlayerState.Falling => "jump_down",
 			PlayerState.Dashing => "dash",
+			PlayerState.WallSliding => "wall_slide",
 			_ => "idle"
 		};
 

@@ -8,5 +8,6 @@ public enum PlayerState
     Jumping,
     Falling,
     Dashing,
-    Attacking
+    Attacking,
+    WallSliding
 }
