@@ -789,6 +789,8 @@ position = Vector2(-3, 17)
 shape = SubResource("RectangleShape2D_dw050")
 
 [node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(1.26, 1.26)
+position_smoothing_enabled = true
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
