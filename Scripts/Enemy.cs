@@ -1,7 +1,10 @@
 using Godot;
+using test2.Scripts;
 
-public partial class Enemy : CharacterBody2D
+public partial class Enemy : CharacterBody2D, IDamageable
 {
+    [Export] public int Hp = 100;
+    
     [Export] public float PatrolSpeed = 100f;
     [Export] public float ChaseSpeed = 150f;
 
@@ -126,5 +129,13 @@ public partial class Enemy : CharacterBody2D
     {
         if (_target == body)
             _target = null;
+    }
+
+    public void TakeDamage(int amount)
+    {
+        Hp -= amount;
+        GD.Print($"Current HP: {Hp}");
+        if(Hp <= 0)
+            QueueFree();
     }
 }

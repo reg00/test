@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://dcwrkkc4yaakn"]
+[gd_scene load_steps=6 format=3 uid="uid://dcwrkkc4yaakn"]
 
 [ext_resource type="Script" uid="uid://cll15dk5ghdsg" path="res://Scripts/Enemy.cs" id="1_pjquw"]
 [ext_resource type="Texture2D" uid="uid://cekevmox6646r" path="res://icon.svg" id="2_663o1"]
@@ -9,6 +9,9 @@ size = Vector2(126, 126)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pjquw"]
 size = Vector2(108, 126)
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_663o1"]
+size = Vector2(124, 126)
+
 [node name="Enemy" type="CharacterBody2D"]
 collision_mask = 7
 script = ExtResource("1_pjquw")
@@ -16,7 +19,7 @@ script = ExtResource("1_pjquw")
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_663o1")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." groups=["HurtBox"]]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_ovk8a")
 
 [node name="DetectArea" type="Area2D" parent="."]
@@ -35,3 +38,10 @@ collision_mask = 4
 position = Vector2(67, 0)
 target_position = Vector2(1, 72)
 collision_mask = 4
+
+[node name="HurtBox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 8
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HurtBox"]
+shape = SubResource("RectangleShape2D_663o1")

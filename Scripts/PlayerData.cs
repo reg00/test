@@ -23,7 +23,8 @@ public partial class PlayerData : Resource
     [Export] public float FallGravityMultiplier = 2.4f;       // падение “тяжелее”, быстрее вниз
     [Export] public float AirJumpMultiplier = 0.85f;           // второй прыжок в 2 раза меньше
     
-    [Export] public int ComboHits = 3;              // сколько ударов в серии (может меняться)
+    [Export] public int ComboHits = 3;        // сколько ударов в серии (может меняться)
+    [Export] public int[] AttackDamage = new int[] { 20, 30, 40 };
     [Export] public float ComboResetTime = 1f;    // через сколько секунд без атак сбрасывать на 1-й удар
     [Export] public string AttackAnimPrefix = "attack_"; // attack_1, attack_2, attack_3...
 

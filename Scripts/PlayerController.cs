@@ -8,8 +8,10 @@ public partial class PlayerController : CharacterBody2D
 	[Export] private PlayerData _playerData;
 
 	// ========== NODES / STATE ==========
-	private AnimatedSprite2D _animatedSprite;
+	private Node2D _visual;
 	private AnimationPlayer _animationPlayer;
+
+	private Area2D _hitBox;
 
 	private bool _isFacingRight = true;
 
@@ -40,18 +42,21 @@ public partial class PlayerController : CharacterBody2D
 
 	public override void _Ready()
 	{
-		_animatedSprite = GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+		_visual = GetNode<Node2D>("Visual");
 		_animationPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
+		_hitBox = GetNode<Area2D>("Visual/AnimatedSprite2D/HitBox");
 
 		_airJumpsLeft = _playerData.ExtraAirJumps;
 		_coyoteTimer = 0f;
 
 		_animationPlayer.AnimationFinished += OnAnimationFinished;
+		_hitBox.AreaEntered += OnHitBoxAreaEntered;
 	}
 
 	public override void _ExitTree()
 	{
 		_animationPlayer.AnimationFinished -= OnAnimationFinished;
+		_hitBox.AreaEntered -= OnHitBoxAreaEntered;
 	}
 
 	public override void _PhysicsProcess(double delta)
@@ -165,6 +170,12 @@ public partial class PlayerController : CharacterBody2D
 
 		if (_attackQueued && _comboResetTimer > 0f)
 			StartAttack();
+	}
+	
+	private void OnHitBoxAreaEntered(Area2D otherArea)
+	{
+		if (otherArea.Owner is IDamageable dmg)
+			dmg.TakeDamage(_playerData.AttackDamage[_comboIndex]);
 	}
 
 	// ========== COYOTE ==========
@@ -426,6 +437,6 @@ public partial class PlayerController : CharacterBody2D
 	private void FlipSprite(bool facingRight)
 	{
 		_isFacingRight = facingRight;
-		_animatedSprite.FlipH = !facingRight;
+		_visual.Scale = new Vector2(facingRight ? 1f : -1f, 1f);
 	}
 }
