@@ -10,7 +10,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	// ========== NODES / STATE ==========
 	private Node2D _visual;
 	private AnimationPlayer _animationPlayer;
-
 	private Area2D _hitBox;
 
 	private bool _isFacingRight = true;
@@ -35,8 +34,12 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	// Wall slide / wall jump
 	private bool _isWallSliding;
-	private Vector2 _wallNormal;     // last wall normal (valid after MoveAndSlide when on wall) [page:1]
-	private float _wallJumpLock;     // optional: short lock of X control after wall jump
+	private Vector2 _wallNormal; // last wall normal (valid after MoveAndSlide when on wall)
+	private float _wallJumpLock;
+
+	// Drop-through one-way
+	private float _dropThroughTimer;
+	private bool _dropRequestedThisFrame;
 
 	private PlayerState _state = PlayerState.Idle;
 
@@ -69,25 +72,79 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		ReadAttackInput();
 		ReadDashInput();
 
+		ReadDropThroughInput();   // важно: до ApplyJumpAndWallJump()
+		TickDropThroughTimer(dt);
+
 		UpdateComboTimer(dt);
 		UpdateCoyote(dt);
 
 		// Vertical / special moves
 		ApplyShapedGravity(dt);
-		ApplyJumpAndWallJump(); // ground jump / double jump / wall jump
+		ApplyJumpAndWallJump(); // здесь мы блокируем прыжок, если в этот кадр был drop-through
 
 		// Horizontal moves
 		UpdateDash(dt);
 		ApplyMoveXInstant();
 
-		// Physics step (updates collision flags + may modify Velocity) [page:1]
+		// Physics step (updates collision flags + may modify Velocity)
 		MoveAndSlide();
 
-		// Post-collision features depending on wall info (IsOnWall/GetWallNormal) [page:1]
+		// Post-collision
 		UpdateWallSlide();
 
 		UpdateState();
 		UpdateAnimation();
+
+		// сброс флага в конце кадра
+		_dropRequestedThisFrame = false;
+	}
+
+	// ========== DROP THROUGH ONE-WAY ==========
+	private void ReadDropThroughInput()
+	{
+		_dropRequestedThisFrame = false;
+
+		// IsOnFloor относится к предыдущему MoveAndSlide, но для ввода этого достаточно.
+		if (!IsOnFloor())
+			return;
+
+		// Условие: зажать вниз + нажать jump
+		if (!Input.IsActionPressed("move_down"))
+			return;
+
+		if (!Input.IsActionJustPressed("jump"))
+			return;
+
+		StartDropThrough();
+		_dropRequestedThisFrame = true;
+	}
+
+	private void StartDropThrough()
+	{
+		_dropThroughTimer = _playerData.DropThroughTime;
+
+		// Временно убираем слой one-way платформ из collision mask игрока. [web:54]
+		SetCollisionMaskValue(_playerData.OneWayPlatformLayer, false);
+
+		// Небольшой "проталкивающий" сдвиг вниз, чтобы гарантированно выйти из контакта с коллайдером платформы. [web:46]
+		GlobalPosition += new Vector2(0f, 2f);
+
+		// Чуть ускоряем падение, чтобы в следующий шаг MoveAndSlide игрок уже пошёл вниз.
+		if (Velocity.Y < 0f) Velocity = Velocity with { Y = 0f };
+		Velocity = Velocity with { Y = Mathf.Max(Velocity.Y, 60f) };
+	}
+
+	private void TickDropThroughTimer(float dt)
+	{
+		if (_dropThroughTimer <= 0f)
+			return;
+
+		_dropThroughTimer = Mathf.Max(0f, _dropThroughTimer - dt);
+		if (_dropThroughTimer <= 0f)
+		{
+			// Возвращаем столкновения с one-way платформами обратно. [web:54]
+			SetCollisionMaskValue(_playerData.OneWayPlatformLayer, true);
+		}
 	}
 
 	// ========== INPUT ==========
@@ -152,15 +209,8 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 			_comboIndex = 0;
 	}
 
-	// Сюда придёт имя завершившейся анимации [web:206][web:202]
 	private void OnAnimationFinished(StringName animName)
 	{
-		// Нас интересуют только удары (по префиксу).
-		// Например AttackAnimPrefix = "attack_" -> "attack_1", "attack_2"... 
-		// var name = animName.ToString();
-		// if (!name.StartsWith(_playerData.AttackAnimPrefix))
-		// 	return;
-
 		if (!_isAttacking)
 			return;
 
@@ -171,7 +221,7 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (_attackQueued && _comboResetTimer > 0f)
 			StartAttack();
 	}
-	
+
 	private void OnHitBoxAreaEntered(Area2D otherArea)
 	{
 		if (otherArea.Owner is IDamageable dmg)
@@ -241,6 +291,10 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	// ========== JUMP (GROUND + DOUBLE + WALL) ==========
 	private void ApplyJumpAndWallJump()
 	{
+		// Если в этот кадр запрошен провал — прыжок не выполняем.
+		if (_dropRequestedThisFrame)
+			return;
+
 		if (!Input.IsActionJustPressed("jump"))
 			return;
 
@@ -254,9 +308,7 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 			return;
 		}
 
-		// 2) Wall jump (requires wall info from LAST MoveAndSlide) [page:1]
-		// This means wall jump will work reliably while wall sliding (because wall slide is computed after MoveAndSlide).
-		// If you want it to work the instant you touch the wall, we can add raycasts.
+		// 2) Wall jump (requires wall info from LAST MoveAndSlide)
 		if (TryWallJump())
 			return;
 
@@ -279,14 +331,12 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	private bool TryWallJump()
 	{
-		// Only in air + must have wall normal from previous physics step [page:1]
 		if (IsOnFloor())
 			return false;
 
 		if (_wallNormal == Vector2.Zero)
 			return false;
 
-		// Require pressing toward the wall (same rule as wall slide)
 		var pressingIntoWall =
 			Mathf.Abs(_axisX) > 0.1f &&
 			Mathf.Sign(_axisX) == -Mathf.Sign(_wallNormal.X);
@@ -294,7 +344,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (!pressingIntoWall)
 			return false;
 
-		// Push away from wall: normal points out of wall [page:1]
 		var pushX = _wallNormal.X * _playerData.WallJumpPush;
 		_canDash = true;
 
@@ -303,7 +352,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		_isWallSliding = false;
 		_coyoteTimer = 0f;
 
-		// Optional short lock so player doesn't instantly override push with input
 		_wallJumpLock = Mathf.Max(0f, _playerData.WallJumpLockTime);
 
 		_state = PlayerState.Jumping;
@@ -322,7 +370,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (_isDashing)
 			return;
 
-		// Optional: stabilize wall jump push
 		if (_wallJumpLock > 0f)
 			return;
 
@@ -368,7 +415,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (_isDashing || _isAttacking)
 			return;
 
-		// IsOnWall/GetWallNormal are valid after MoveAndSlide() [page:1]
 		var inAir = !IsOnFloor();
 		var touchingWall = IsOnWall();
 		var falling = Velocity.Y > 0f;
@@ -376,7 +422,7 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (!(inAir && touchingWall && falling))
 			return;
 
-		var wallNormal = GetWallNormal(); // [page:1]
+		var wallNormal = GetWallNormal();
 		_wallNormal = wallNormal;
 
 		var pressingIntoWall =
@@ -388,7 +434,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 		_isWallSliding = true;
 
-		// Instant clamp fall speed by multiplier
 		var mult = Mathf.Clamp(_playerData.WallSlideFallMultiplier, 0f, 1f);
 		var wallSlideMaxFall = _playerData.MaxFallSpeed * mult;
 

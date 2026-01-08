@@ -33,4 +33,8 @@ public partial class PlayerData : Resource
     [Export] public float WallJumpForce  = 500f;
     [Export] public float WallJumpPush  = 300f;
     [Export] public float WallJumpLockTime  = 0.15f;
+    
+    // ========== DROP THROUGH ONE-WAY ==========
+    [Export] public int OneWayPlatformLayer = 7;  // слой (1..32), где стоят твои one-way StaticBody2D
+    [Export] public float DropThroughTime = 0.20f;
 }
