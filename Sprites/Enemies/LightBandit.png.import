@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cs2rmnvda5pky"
-path="res://.godot/imported/nature_environment_01.png-c1ddfe375cb1be0dfc12996d93ed1d7a.ctex"
+uid="uid://dmih7voybsa1j"
+path="res://.godot/imported/LightBandit.png-3f147c9c643d7a03a2cfcfc11312b464.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Sprites/nature_environment_01.png"
-dest_files=["res://.godot/imported/nature_environment_01.png-c1ddfe375cb1be0dfc12996d93ed1d7a.ctex"]
+source_file="res://Sprites/Enemies/LightBandit.png"
+dest_files=["res://.godot/imported/LightBandit.png-3f147c9c643d7a03a2cfcfc11312b464.ctex"]
 
 [params]
 

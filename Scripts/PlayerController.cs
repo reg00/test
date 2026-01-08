@@ -2,7 +2,7 @@ using Godot;
 using test2.Scripts;
 
 // ReSharper disable once CheckNamespace
-public partial class PlayerController : CharacterBody2D
+public partial class PlayerController : CharacterBody2D, IDamageable
 {
 	// ========== EXPORTED ==========
 	[Export] private PlayerData _playerData;
@@ -438,5 +438,10 @@ public partial class PlayerController : CharacterBody2D
 	{
 		_isFacingRight = facingRight;
 		_visual.Scale = new Vector2(facingRight ? 1f : -1f, 1f);
+	}
+
+	public void TakeDamage(int amount)
+	{
+		GD.Print($"Take damage: {amount}");
 	}
 }

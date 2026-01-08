@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c6rsd5tmcuh7c"
-path="res://.godot/imported/HeroKnight.png-1831f77d6c22a8e61cc66fd40cd3d1b6.ctex"
+uid="uid://dmud625pxn28n"
+path="res://.godot/imported/Bringer-of-Death-SpritSheet.png-6a1b77285bec3a9711cf5e0b79c03e7a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Sprites/HeroKnight.png"
-dest_files=["res://.godot/imported/HeroKnight.png-1831f77d6c22a8e61cc66fd40cd3d1b6.ctex"]
+source_file="res://Sprites/Enemies/Bringer-of-Death-SpritSheet.png"
+dest_files=["res://.godot/imported/Bringer-of-Death-SpritSheet.png-6a1b77285bec3a9711cf5e0b79c03e7a.ctex"]
 
 [params]
 
