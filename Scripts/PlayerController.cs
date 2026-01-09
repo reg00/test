@@ -12,9 +12,12 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	private AnimationPlayer _animationPlayer;
 	private Area2D _hitBox;
 
-	private bool _isFacingRight = true;
+	private RayCast2D _ledgeWallRay;
+	private RayCast2D _ledgeTopRay;
 
-	// Cached input per frame
+	private CollisionShape2D _mainCollider;
+
+	private bool _isFacingRight = true;
 	private float _axisX;
 
 	// Dash
@@ -34,12 +37,19 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	// Wall slide / wall jump
 	private bool _isWallSliding;
-	private Vector2 _wallNormal; // last wall normal (valid after MoveAndSlide when on wall)
+	private Vector2 _wallNormal;
 	private float _wallJumpLock;
 
 	// Drop-through one-way
 	private float _dropThroughTimer;
 	private bool _dropRequestedThisFrame;
+
+	// Ledge
+	private bool _isLedgeHanging;
+	private bool _isLedgeClimbing;
+	private Vector2 _ledgeHangPos;
+	private Vector2 _ledgeClimbPos;
+	private bool _ledgeClimbInputReady;
 
 	private PlayerState _state = PlayerState.Idle;
 
@@ -48,6 +58,11 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		_visual = GetNode<Node2D>("Visual");
 		_animationPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
 		_hitBox = GetNode<Area2D>("Visual/AnimatedSprite2D/HitBox");
+
+		_ledgeWallRay = GetNode<RayCast2D>("Visual/LedgeWallRay");
+		_ledgeTopRay = GetNode<RayCast2D>("Visual/LedgeTopRay");
+
+		_mainCollider = GetNode<CollisionShape2D>("CollisionShape2D");
 
 		_airJumpsLeft = _playerData.ExtraAirJumps;
 		_coyoteTimer = 0f;
@@ -72,86 +87,45 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		ReadAttackInput();
 		ReadDashInput();
 
-		ReadDropThroughInput();   // важно: до ApplyJumpAndWallJump()
+		ReadDropThroughInput();
 		TickDropThroughTimer(dt);
+
+		// ===== ledge has priority =====
+		if (_isLedgeClimbing)
+		{
+			Velocity = Vector2.Zero;
+			return;
+		}
+
+		if (_isLedgeHanging)
+		{
+			TickLedgeHang();
+			return;
+		}
 
 		UpdateComboTimer(dt);
 		UpdateCoyote(dt);
 
-		// Vertical / special moves
 		ApplyShapedGravity(dt);
-		ApplyJumpAndWallJump(); // здесь мы блокируем прыжок, если в этот кадр был drop-through
+		ApplyJumpAndWallJump();
 
-		// Horizontal moves
 		UpdateDash(dt);
 		ApplyMoveXInstant();
 
-		// Physics step (updates collision flags + may modify Velocity)
 		MoveAndSlide();
 
-		// Post-collision
 		UpdateWallSlide();
+
+		TryGrabLedge();
 
 		UpdateState();
 		UpdateAnimation();
 
-		// сброс флага в конце кадра
 		_dropRequestedThisFrame = false;
-	}
-
-	// ========== DROP THROUGH ONE-WAY ==========
-	private void ReadDropThroughInput()
-	{
-		_dropRequestedThisFrame = false;
-
-		// IsOnFloor относится к предыдущему MoveAndSlide, но для ввода этого достаточно.
-		if (!IsOnFloor())
-			return;
-
-		// Условие: зажать вниз + нажать jump
-		if (!Input.IsActionPressed("move_down"))
-			return;
-
-		if (!Input.IsActionJustPressed("jump"))
-			return;
-
-		StartDropThrough();
-		_dropRequestedThisFrame = true;
-	}
-
-	private void StartDropThrough()
-	{
-		_dropThroughTimer = _playerData.DropThroughTime;
-
-		// Временно убираем слой one-way платформ из collision mask игрока. [web:54]
-		SetCollisionMaskValue(_playerData.OneWayPlatformLayer, false);
-
-		// Небольшой "проталкивающий" сдвиг вниз, чтобы гарантированно выйти из контакта с коллайдером платформы. [web:46]
-		GlobalPosition += new Vector2(0f, 2f);
-
-		// Чуть ускоряем падение, чтобы в следующий шаг MoveAndSlide игрок уже пошёл вниз.
-		if (Velocity.Y < 0f) Velocity = Velocity with { Y = 0f };
-		Velocity = Velocity with { Y = Mathf.Max(Velocity.Y, 60f) };
-	}
-
-	private void TickDropThroughTimer(float dt)
-	{
-		if (_dropThroughTimer <= 0f)
-			return;
-
-		_dropThroughTimer = Mathf.Max(0f, _dropThroughTimer - dt);
-		if (_dropThroughTimer <= 0f)
-		{
-			// Возвращаем столкновения с one-way платформами обратно. [web:54]
-			SetCollisionMaskValue(_playerData.OneWayPlatformLayer, true);
-		}
 	}
 
 	// ========== INPUT ==========
-	private void ReadMoveInput()
-	{
-		_axisX = Input.GetAxis("move_left", "move_right");
-	}
+	private void ReadMoveInput() => _axisX = Input.GetAxis("move_left", "move_right");
 
 	private void ReadDashInput()
 	{
@@ -173,6 +147,45 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		}
 
 		StartAttack();
+	}
+
+	// ========== DROP THROUGH ONE-WAY ==========
+	private void ReadDropThroughInput()
+	{
+		_dropRequestedThisFrame = false;
+
+		if (!IsOnFloor())
+			return;
+
+		if (!Input.IsActionPressed("move_down"))
+			return;
+
+		if (!Input.IsActionJustPressed("jump"))
+			return;
+
+		StartDropThrough();
+		_dropRequestedThisFrame = true;
+	}
+
+	private void StartDropThrough()
+	{
+		_dropThroughTimer = _playerData.DropThroughTime;
+		SetCollisionMaskValue(_playerData.OneWayPlatformLayer, false);
+
+		GlobalPosition += new Vector2(0f, 2f);
+
+		if (Velocity.Y < 0f) Velocity = Velocity with { Y = 0f };
+		Velocity = Velocity with { Y = Mathf.Max(Velocity.Y, 60f) };
+	}
+
+	private void TickDropThroughTimer(float dt)
+	{
+		if (_dropThroughTimer <= 0f)
+			return;
+
+		_dropThroughTimer = Mathf.Max(0f, _dropThroughTimer - dt);
+		if (_dropThroughTimer <= 0f)
+			SetCollisionMaskValue(_playerData.OneWayPlatformLayer, true);
 	}
 
 	// ========== COMBO ==========
@@ -205,21 +218,34 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	{
 		var hits = Mathf.Max(1, _playerData.ComboHits);
 		_comboIndex++;
-		if (_comboIndex >= hits)
-			_comboIndex = 0;
+		if (_comboIndex >= hits) _comboIndex = 0;
 	}
 
 	private void OnAnimationFinished(StringName animName)
 	{
-		if (!_isAttacking)
+		var a = animName.ToString();
+
+		if (_isAttacking)
+		{
+			_isAttacking = false;
+			AdvanceCombo();
+
+			if (_attackQueued && _comboResetTimer > 0f)
+				StartAttack();
+
 			return;
+		}
 
-		_isAttacking = false;
+		if (_isLedgeClimbing && a == "ledge_climb")
+		{
+			_isLedgeClimbing = false;
 
-		AdvanceCombo();
+			GlobalPosition = _ledgeClimbPos;
+			Velocity = Vector2.Zero;
 
-		if (_attackQueued && _comboResetTimer > 0f)
-			StartAttack();
+			_ledgeWallRay.ForceRaycastUpdate(); // обновляет в этом же тикe [page:0]
+			_ledgeTopRay.ForceRaycastUpdate();  // [page:0]
+		}
 	}
 
 	private void OnHitBoxAreaEntered(Area2D otherArea)
@@ -243,7 +269,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	// ========== GRAVITY (SHAPED) ==========
 	private void ApplyShapedGravity(float dt)
 	{
-		// Dash is purely horizontal
 		if (_isDashing)
 		{
 			Velocity = Velocity with { Y = 0f };
@@ -254,8 +279,7 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 		if (IsOnFloor())
 		{
-			if (v.Y > 0f)
-				v.Y = 0f;
+			if (v.Y > 0f) v.Y = 0f;
 
 			_airJumpsLeft = _playerData.ExtraAirJumps;
 			_canDash = true;
@@ -291,14 +315,12 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	// ========== JUMP (GROUND + DOUBLE + WALL) ==========
 	private void ApplyJumpAndWallJump()
 	{
-		// Если в этот кадр запрошен провал — прыжок не выполняем.
 		if (_dropRequestedThisFrame)
 			return;
 
 		if (!Input.IsActionJustPressed("jump"))
 			return;
 
-		// 1) Ground/coyote jump first
 		var canGroundJump = IsOnFloor() || _coyoteTimer > 0f;
 		if (canGroundJump)
 		{
@@ -308,19 +330,16 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 			return;
 		}
 
-		// 2) Wall jump (requires wall info from LAST MoveAndSlide)
 		if (TryWallJump())
 			return;
 
-		// 3) Air jump
 		if (_airJumpsLeft <= 0)
 			return;
 
 		_airJumpsLeft--;
 
 		var v = Velocity;
-		if (v.Y > 0f)
-			v.Y = 0f;
+		if (v.Y > 0f) v.Y = 0f;
 
 		var airJumpForce = _playerData.JumpForce * _playerData.AirJumpMultiplier;
 		v.Y = -airJumpForce;
@@ -441,6 +460,166 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 			Velocity = Velocity with { Y = wallSlideMaxFall };
 	}
 
+	// ========== LEDGE (FORWARD + DOWN) ==========
+	private void TryGrabLedge()
+	{
+		if (_isLedgeHanging || _isLedgeClimbing)
+			return;
+
+		if (IsOnFloor())
+			return;
+
+		if (_isDashing || _isAttacking)
+			return;
+
+		// Важное: после прыжка от стены/уступа не цепляемся обратно сразу
+		if (_wallJumpLock > 0f)
+			return;
+
+		if (Velocity.Y < _playerData.LedgeGrabMinFallSpeed)
+			return;
+
+		var pressingIntoWall =
+			Mathf.Abs(_axisX) > _playerData.LedgeInputDeadzone &&
+			(_axisX > 0) == _isFacingRight;
+
+		if (!pressingIntoWall)
+			return;
+
+		_ledgeWallRay.ForceRaycastUpdate();
+		_ledgeTopRay.ForceRaycastUpdate();
+
+		if (!_ledgeWallRay.IsColliding())
+			return;
+
+		if (!_ledgeTopRay.IsColliding())
+			return;
+
+		var wallPoint = _ledgeWallRay.GetCollisionPoint(); // global [page:0]
+		var topPoint = _ledgeTopRay.GetCollisionPoint();   // global [page:0]
+
+		GetColliderHalfExtents(out var halfW, out var halfH);
+
+		var sign = _isFacingRight ? 1f : -1f;
+
+		var hangX = wallPoint.X - sign * (halfW + _playerData.LedgeExtraGapX);
+		var hangY = topPoint.Y + halfH + _playerData.LedgeExtraGapY;
+
+		_ledgeHangPos = new Vector2(hangX, hangY);
+		_ledgeClimbPos = _ledgeHangPos + new Vector2(sign * _playerData.LedgeClimbDelta.X, _playerData.LedgeClimbDelta.Y);
+
+		StartLedgeHang();
+	}
+
+	private void GetColliderHalfExtents(out float halfW, out float halfH)
+	{
+		halfW = 8f;
+		halfH = 16f;
+
+		if (_mainCollider?.Shape == null)
+			return;
+
+		switch (_mainCollider.Shape)
+		{
+			case RectangleShape2D rect:
+				halfW = rect.Size.X * 0.5f * Mathf.Abs(_mainCollider.Scale.X);
+				halfH = rect.Size.Y * 0.5f * Mathf.Abs(_mainCollider.Scale.Y);
+				return;
+
+			case CapsuleShape2D cap:
+				halfW = cap.Radius * Mathf.Abs(_mainCollider.Scale.X);
+				halfH = (cap.Height * 0.5f + cap.Radius) * Mathf.Abs(_mainCollider.Scale.Y);
+				return;
+
+			case CircleShape2D cir:
+				halfW = cir.Radius * Mathf.Abs(_mainCollider.Scale.X);
+				halfH = cir.Radius * Mathf.Abs(_mainCollider.Scale.Y);
+				return;
+		}
+	}
+
+	private void StartLedgeHang()
+	{
+		_isLedgeHanging = true;
+		_isWallSliding = false;
+
+		Velocity = Vector2.Zero;
+		GlobalPosition = _ledgeHangPos;
+
+		_ledgeClimbInputReady = false;
+
+		_animationPlayer.Play("ledge_hang");
+	}
+
+	private void TickLedgeHang()
+	{
+		Velocity = Vector2.Zero;
+		GlobalPosition = _ledgeHangPos;
+
+		// Спуск: вниз ИЛИ "от края/от стены"
+		var pressAwayFromLedge =
+			Mathf.Abs(_axisX) > _playerData.LedgeInputDeadzone &&
+			(_axisX > 0) != _isFacingRight;
+
+		if (Input.IsActionJustPressed("move_down") || pressAwayFromLedge)
+		{
+			DropFromLedge();
+			return;
+		}
+
+		// Прыжок в висении = wall jump (а не climb)
+		if (Input.IsActionJustPressed("jump"))
+		{
+			LedgeWallJump();
+			return;
+		}
+
+		// Climb: только по нажатию направления в сторону уступа
+		if (!_ledgeClimbInputReady)
+		{
+			if (Mathf.Abs(_axisX) < _playerData.LedgeInputDeadzone)
+				_ledgeClimbInputReady = true;
+			return;
+		}
+
+		var pressTowardLedge =
+			Mathf.Abs(_axisX) > _playerData.LedgeInputDeadzone &&
+			(_axisX > 0) == _isFacingRight;
+
+		if (pressTowardLedge)
+			StartLedgeClimb();
+	}
+
+	private void DropFromLedge()
+	{
+		_isLedgeHanging = false;
+		Velocity = Velocity with { Y = 60f };
+	}
+
+	private void LedgeWallJump()
+	{
+		_isLedgeHanging = false;
+		_isWallSliding = false;
+
+		var dirX = _isFacingRight ? -1f : 1f;
+		Velocity = new Vector2(dirX * _playerData.WallJumpPush, -_playerData.WallJumpForce);
+
+		_canDash = true;
+		_coyoteTimer = 0f;
+		_wallJumpLock = Mathf.Max(0f, _playerData.WallJumpLockTime);
+
+		_state = PlayerState.Jumping;
+	}
+
+	private void StartLedgeClimb()
+	{
+		_isLedgeHanging = false;
+		_isLedgeClimbing = true;
+
+		Velocity = Vector2.Zero;
+		_animationPlayer.Play("ledge_climb");
+	}
+
 	// ========== STATE ==========
 	private void UpdateState()
 	{
@@ -460,7 +639,7 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	// ========== ANIMATION ==========
 	private void UpdateAnimation()
 	{
-		if (_isAttacking)
+		if (_isAttacking || _isLedgeHanging || _isLedgeClimbing)
 			return;
 
 		var anim = _state switch

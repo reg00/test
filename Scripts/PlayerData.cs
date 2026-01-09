@@ -37,4 +37,16 @@ public partial class PlayerData : Resource
     // ========== DROP THROUGH ONE-WAY ==========
     [Export] public int OneWayPlatformLayer = 7;  // слой (1..32), где стоят твои one-way StaticBody2D
     [Export] public float DropThroughTime = 0.20f;
+    
+    
+    // ====== Ledge settings ======
+    [Export] public float LedgeGrabMinFallSpeed = 40f;
+    [Export] public float LedgeInputDeadzone = 0.1f;
+
+    // Дополнительные зазоры (тонкая настройка)
+    [Export] public float LedgeExtraGapX = 2f; // от стены
+    [Export] public float LedgeExtraGapY = 0f; // вверх/вниз (обычно 0..2)
+
+    // Куда ставить после climb относительно точки hang (подгони под анимацию)
+    [Export] public Vector2 LedgeClimbDelta = new(50f, -50f);
 }

@@ -1,9 +1,9 @@
 [gd_scene load_steps=5 format=4 uid="uid://bpjomw18ynm36"]
 
-[ext_resource type="PackedScene" uid="uid://cva6iek811g7c" path="res://player.tscn" id="1_2c62f"]
+[ext_resource type="PackedScene" uid="uid://cva6iek811g7c" path="res://Prefabs/player.tscn" id="1_2c62f"]
 [ext_resource type="TileSet" uid="uid://brqyxxw7no806" path="res://Sprites/Backgound/tile_set.tres" id="2_gyfs4"]
-[ext_resource type="PackedScene" uid="uid://b2st0jhfwa43v" path="res://one-way-platform.tscn" id="4_8mm7a"]
-[ext_resource type="PackedScene" uid="uid://bknu2p3asjbb" path="res://enemy_2.tscn" id="4_d5x1h"]
+[ext_resource type="PackedScene" uid="uid://b2st0jhfwa43v" path="res://Prefabs/one-way-platform.tscn" id="4_8mm7a"]
+[ext_resource type="PackedScene" uid="uid://bknu2p3asjbb" path="res://Prefabs/enemy_2.tscn" id="4_d5x1h"]
 
 [node name="Scene" type="Node2D"]
 
