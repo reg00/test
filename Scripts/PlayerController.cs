@@ -49,7 +49,12 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	private bool _isLedgeClimbing;
 	private Vector2 _ledgeHangPos;
 	private Vector2 _ledgeClimbPos;
-	private bool _ledgeClimbInputReady;
+
+	// Автоклайм: задержка, чтобы не стартовать climb в тот же тик хвата
+	private float _ledgeAutoClimbDelay;
+
+	// NEW: пауза (игнор X-ввода) после взбирания
+	private float _moveXIgnoreTimer;
 
 	private PlayerState _state = PlayerState.Idle;
 
@@ -81,8 +86,14 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 	{
 		var dt = (float)delta;
 
+		// NEW: тикаем паузу горизонтального ввода
+		if (_moveXIgnoreTimer > 0f)
+			_moveXIgnoreTimer = Mathf.Max(0f, _moveXIgnoreTimer - dt);
+
 		TickWallJumpLock(dt);
 
+		// ВАЖНО: ввод читаем ВСЕГДА, даже если сейчас hang/climb.
+		// Тогда после окончания climb удержанная кнопка сразу продолжит движение. [web:12]
 		ReadMoveInput();
 		ReadAttackInput();
 		ReadDashInput();
@@ -93,13 +104,14 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		// ===== ledge has priority =====
 		if (_isLedgeClimbing)
 		{
+			// Полный лок движения на время climb
 			Velocity = Vector2.Zero;
 			return;
 		}
 
 		if (_isLedgeHanging)
 		{
-			TickLedgeHang();
+			TickLedgeHang(dt);
 			return;
 		}
 
@@ -240,11 +252,15 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		{
 			_isLedgeClimbing = false;
 
+			// Переставляем тело в финальную точку и отпускаем лок.
 			GlobalPosition = _ledgeClimbPos;
 			Velocity = Vector2.Zero;
 
-			_ledgeWallRay.ForceRaycastUpdate(); // обновляет в этом же тикe [page:0]
-			_ledgeTopRay.ForceRaycastUpdate();  // [page:0]
+			// NEW: короткая пауза для X-ввода, чтобы не "уезжал" от края при удержании
+			_moveXIgnoreTimer = 0.075f;
+
+			_ledgeWallRay.ForceRaycastUpdate();
+			_ledgeTopRay.ForceRaycastUpdate();
 		}
 	}
 
@@ -392,6 +408,17 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (_wallJumpLock > 0f)
 			return;
 
+		// Висим/взбираемся — не применяем X
+		if (_isLedgeHanging || _isLedgeClimbing)
+			return;
+
+		// NEW: после взбирания игнорируем X на короткое время
+		if (_moveXIgnoreTimer > 0f)
+		{
+			Velocity = Velocity with { X = 0f };
+			return;
+		}
+
 		var x = _axisX * _playerData.Speed;
 		Velocity = Velocity with { X = x };
 
@@ -472,7 +499,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (_isDashing || _isAttacking)
 			return;
 
-		// Важное: после прыжка от стены/уступа не цепляемся обратно сразу
 		if (_wallJumpLock > 0f)
 			return;
 
@@ -495,8 +521,8 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 		if (!_ledgeTopRay.IsColliding())
 			return;
 
-		var wallPoint = _ledgeWallRay.GetCollisionPoint(); // global [page:0]
-		var topPoint = _ledgeTopRay.GetCollisionPoint();   // global [page:0]
+		var wallPoint = _ledgeWallRay.GetCollisionPoint();
+		var topPoint = _ledgeTopRay.GetCollisionPoint();
 
 		GetColliderHalfExtents(out var halfW, out var halfH);
 
@@ -540,23 +566,26 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	private void StartLedgeHang()
 	{
+		GD.Print("Start");
 		_isLedgeHanging = true;
 		_isWallSliding = false;
 
 		Velocity = Vector2.Zero;
 		GlobalPosition = _ledgeHangPos;
 
-		_ledgeClimbInputReady = false;
+		_ledgeAutoClimbDelay = 0.30f;
 
 		_animationPlayer.Play("ledge_hang");
 	}
 
-	private void TickLedgeHang()
+	private void TickLedgeHang(float dt)
 	{
 		Velocity = Vector2.Zero;
 		GlobalPosition = _ledgeHangPos;
 
-		// Спуск: вниз ИЛИ "от края/от стены"
+		if (_ledgeAutoClimbDelay > 0f)
+			_ledgeAutoClimbDelay = Mathf.Max(0f, _ledgeAutoClimbDelay - dt);
+
 		var pressAwayFromLedge =
 			Mathf.Abs(_axisX) > _playerData.LedgeInputDeadzone &&
 			(_axisX > 0) != _isFacingRight;
@@ -567,27 +596,25 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 			return;
 		}
 
-		// Прыжок в висении = wall jump (а не climb)
 		if (Input.IsActionJustPressed("jump"))
 		{
 			LedgeWallJump();
 			return;
 		}
 
-		// Climb: только по нажатию направления в сторону уступа
-		if (!_ledgeClimbInputReady)
+		// Автоклайм при удержании "в сторону уступа" (после задержки)
+		if (_ledgeAutoClimbDelay <= 0f)
 		{
-			if (Mathf.Abs(_axisX) < _playerData.LedgeInputDeadzone)
-				_ledgeClimbInputReady = true;
-			return;
+			var pressTowardLedge =
+				Mathf.Abs(_axisX) > _playerData.LedgeInputDeadzone &&
+				(_axisX > 0) == _isFacingRight;
+
+			if (pressTowardLedge)
+			{
+				StartLedgeClimb();
+				return;
+			}
 		}
-
-		var pressTowardLedge =
-			Mathf.Abs(_axisX) > _playerData.LedgeInputDeadzone &&
-			(_axisX > 0) == _isFacingRight;
-
-		if (pressTowardLedge)
-			StartLedgeClimb();
 	}
 
 	private void DropFromLedge()

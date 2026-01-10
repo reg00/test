@@ -3,7 +3,7 @@
 [ext_resource type="Texture2D" uid="uid://jxghn8ficsti" path="res://Sprites/Backgound/platform.png" id="1_h8kui"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_76mrl"]
-size = Vector2(665.93945, 87.43384)
+size = Vector2(749.1826, 87.43384)
 
 [node name="Platform" type="StaticBody2D"]
 position = Vector2(1785.9999, 530)

@@ -1,4 +1,4 @@
-[gd_scene load_steps=74 format=3 uid="uid://cva6iek811g7c"]
+[gd_scene load_steps=73 format=3 uid="uid://cva6iek811g7c"]
 
 [ext_resource type="Script" uid="uid://80fnwevrgd1t" path="res://Scripts/PlayerController.cs" id="1_i3pqv"]
 [ext_resource type="Script" uid="uid://dk3x7rrih1e2j" path="res://Scripts/PlayerData.cs" id="2_hqtel"]
@@ -131,10 +131,6 @@ region = Rect2(100, 220, 100, 55)
 [sub_resource type="AtlasTexture" id="AtlasTexture_iylel"]
 atlas = ExtResource("3_sweqy")
 region = Rect2(800, 165, 100, 55)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_2nftw"]
-atlas = ExtResource("3_sweqy")
-region = Rect2(0, 440, 100, 55)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_3vpsw"]
 atlas = ExtResource("3_sweqy")
@@ -341,7 +337,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_2nftw")
+"texture": SubResource("AtlasTexture_3vpsw")
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_3vpsw")
@@ -908,12 +904,13 @@ position = Vector2(-4, 11)
 shape = SubResource("RectangleShape2D_hqtel")
 
 [node name="LedgeWallRay" type="RayCast2D" parent="Visual"]
-position = Vector2(1, -11)
+position = Vector2(1, -19)
 target_position = Vector2(28, 0)
 collision_mask = 68
 
 [node name="LedgeTopRay" type="RayCast2D" parent="Visual"]
-position = Vector2(38, -79)
+position = Vector2(39, -68)
+target_position = Vector2(0, 17)
 collision_mask = 68
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
