@@ -446,12 +446,6 @@ tracks/1/keys = {
 "values": [Vector2(35.75, 44)]
 }
 
-[sub_resource type="Animation" id="Animation_y5hcb"]
-length = 1.2
-
-[sub_resource type="Animation" id="Animation_2nftw"]
-length = 1.8
-
 [sub_resource type="Animation" id="Animation_i3pqv"]
 length = 0.5
 tracks/0/type = "value"
@@ -771,6 +765,9 @@ tracks/1/keys = {
 "values": ["ledge_climb"]
 }
 
+[sub_resource type="Animation" id="Animation_y5hcb"]
+length = 1.2
+
 [sub_resource type="Animation" id="Animation_hck1p"]
 length = 0.625
 tracks/0/type = "value"
@@ -797,6 +794,9 @@ tracks/1/keys = {
 "update": 1,
 "values": ["ledge_hang"]
 }
+
+[sub_resource type="Animation" id="Animation_2nftw"]
+length = 1.8
 
 [sub_resource type="Animation" id="Animation_nvl01"]
 loop_mode = 1
@@ -910,7 +910,7 @@ collision_mask = 68
 
 [node name="LedgeTopRay" type="RayCast2D" parent="Visual"]
 position = Vector2(39, -68)
-target_position = Vector2(0, 17)
+target_position = Vector2(0, 43)
 collision_mask = 68
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

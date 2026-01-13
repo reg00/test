@@ -1,0 +1,50 @@
+[gd_scene load_steps=2 format=3 uid="uid://db6bdiftmi8ll"]
+
+[ext_resource type="Script" uid="uid://cwg3piiigo1mx" path="res://Scripts/MainMenu.cs" id="1_3kf3n"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_3kf3n")
+
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.32, 0.17279999, 0.17279999, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+layout_mode = 2
+
+[node name="Layout" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 92
+text = "Color"
+
+[node name="StartButton" type="Button" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Start"
+
+[node name="QuitButton" type="Button" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Quit"

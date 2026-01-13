@@ -29,3 +29,5 @@ tile_map_data = PackedByteArray("AAAAAAcAAQAVAAcAAAABAAcAAQAVAAcAAAACAAcAAQAVAAc
 tile_set = ExtResource("2_gyfs4")
 
 [node name="Platform" parent="." instance=ExtResource("4_8mm7a")]
+position = Vector2(1839, 549)
+scale = Vector2(0.19221263, 0.19174328)

@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3 uid="uid://nmulfe7na072"]
+
+[ext_resource type="Script" uid="uid://doq6anaffs6dl" path="res://Scripts/Main.cs" id="1_bo1nx"]
+[ext_resource type="PackedScene" uid="uid://keyy1jtt6v78" path="res://Scenes/pause_menu.tscn" id="2_bo1nx"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_bo1nx")
+
+[node name="World" type="Node2D" parent="."]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="HUD" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PauseMenu" parent="UI" instance=ExtResource("2_bo1nx")]
