@@ -70,6 +70,7 @@ attack={
 2d_physics/layer_5="HurtBox"
 2d_physics/layer_6="Detector"
 2d_physics/layer_7="OneWayPlatform"
+2d_physics/layer_8="Door"
 
 [rendering]
 

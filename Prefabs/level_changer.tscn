@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3 uid="uid://d3llrp41416j8"]
+
+[ext_resource type="Script" uid="uid://2sqg55j47ro7" path="res://Scripts/Door.cs" id="1_ti7b3"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8x26g"]
+size = Vector2(72, 108)
+
+[node name="Door" type="Area2D"]
+position = Vector2(2312, 66)
+collision_layer = 128
+script = ExtResource("1_ti7b3")
+TargetLevel = "uid://bpjomw18ynm36"
+TargetSpawnName = "Spawn"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(29, 0)
+shape = SubResource("RectangleShape2D_8x26g")
