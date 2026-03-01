@@ -6,6 +6,8 @@ public partial class PauseMenu : CanvasLayer
 	public string MainMenuScene = "res://Scenes/Menu.tscn";
 
 	private Control _root;
+	private Button _resumeButton;
+	private Button _mainMenuButton;
 
 	public override void _Ready()
 	{
@@ -15,11 +17,19 @@ public partial class PauseMenu : CanvasLayer
 		// Чтобы работало даже когда дерево на паузе:
 		ProcessMode = ProcessModeEnum.Always; // Process Mode влияет на поведение при paused [web:45]
 		
-		var resume = GetNode<Button>("Root/Center/Panel/Layout/ResumeButton");
-		var menu = GetNode<Button>("Root/Center/Panel/Layout/MeinMenuButton");
+		_resumeButton = GetNode<Button>("Root/Center/Panel/Layout/ResumeButton");
+		_mainMenuButton = GetNode<Button>("Root/Center/Panel/Layout/MainMenuButton");
 
-		resume.Pressed += _OnResumePressed;
-		menu.Pressed += _OnMainMenuPressed;
+		_resumeButton.Pressed += _OnResumePressed;
+		_mainMenuButton.Pressed += _OnMainMenuPressed;
+	}
+
+	public override void _ExitTree()
+	{
+		if (_resumeButton != null)
+			_resumeButton.Pressed -= _OnResumePressed;
+		if (_mainMenuButton != null)
+			_mainMenuButton.Pressed -= _OnMainMenuPressed;
 	}
 	
 	public override void _UnhandledInput(InputEvent e)

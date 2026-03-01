@@ -26,6 +26,7 @@ enabled=PackedStringArray("res://addons/AS2P/plugin.cfg")
 [global_group]
 
 player=""
+enemy=""
 Environment=""
 
 [input]

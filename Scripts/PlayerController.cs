@@ -6,6 +6,12 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 {
 	// ========== EXPORTED ==========
 	[Export] private PlayerData _playerData;
+	[Export] private NodePath _visualPath = "Visual";
+	[Export] private NodePath _animationPlayerPath = "AnimationPlayer";
+	[Export] private NodePath _hitBoxPath = "Visual/AnimatedSprite2D/HitBox";
+	[Export] private NodePath _ledgeWallRayPath = "Visual/LedgeWallRay";
+	[Export] private NodePath _ledgeTopRayPath = "Visual/LedgeTopRay";
+	[Export] private NodePath _mainColliderPath = "CollisionShape2D";
 
 	// ========== NODES / STATE ==========
 	private Node2D _visual;
@@ -60,14 +66,21 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	public override void _Ready()
 	{
-		_visual = GetNode<Node2D>("Visual");
-		_animationPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
-		_hitBox = GetNode<Area2D>("Visual/AnimatedSprite2D/HitBox");
+		if (_playerData == null)
+		{
+			GD.PushError("PlayerController: PlayerData is not assigned.");
+			SetPhysicsProcess(false);
+			return;
+		}
 
-		_ledgeWallRay = GetNode<RayCast2D>("Visual/LedgeWallRay");
-		_ledgeTopRay = GetNode<RayCast2D>("Visual/LedgeTopRay");
+		_visual = GetNode<Node2D>(_visualPath);
+		_animationPlayer = GetNode<AnimationPlayer>(_animationPlayerPath);
+		_hitBox = GetNode<Area2D>(_hitBoxPath);
 
-		_mainCollider = GetNode<CollisionShape2D>("CollisionShape2D");
+		_ledgeWallRay = GetNode<RayCast2D>(_ledgeWallRayPath);
+		_ledgeTopRay = GetNode<RayCast2D>(_ledgeTopRayPath);
+
+		_mainCollider = GetNode<CollisionShape2D>(_mainColliderPath);
 
 		_airJumpsLeft = _playerData.ExtraAirJumps;
 		_coyoteTimer = 0f;
@@ -141,12 +154,18 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	private void ReadDashInput()
 	{
+		if (_isLedgeHanging || _isLedgeClimbing)
+			return;
+
 		if (Input.IsActionJustPressed("dash") && _canDash)
 			StartDash();
 	}
 
 	private void ReadAttackInput()
 	{
+		if (_isLedgeHanging || _isLedgeClimbing)
+			return;
+
 		if (!Input.IsActionJustPressed("attack"))
 			return;
 
@@ -266,8 +285,22 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	private void OnHitBoxAreaEntered(Area2D otherArea)
 	{
-		if (otherArea.Owner is IDamageable dmg)
-			dmg.TakeDamage(_playerData.AttackDamage[_comboIndex]);
+		var ownerNode = otherArea.Owner as Node;
+		if (ownerNode == null || ownerNode == this || !ownerNode.IsInGroup("enemy"))
+			return;
+
+		if (ownerNode is not IDamageable dmg)
+			return;
+
+		var damageArray = _playerData.AttackDamage;
+		if (damageArray == null || damageArray.Length == 0)
+		{
+			GD.PushWarning("PlayerController: AttackDamage array is empty.");
+			return;
+		}
+
+		var damageIndex = Mathf.Clamp(_comboIndex, 0, damageArray.Length - 1);
+		dmg.TakeDamage(damageArray[damageIndex]);
 	}
 
 	// ========== COYOTE ==========
@@ -566,7 +599,6 @@ public partial class PlayerController : CharacterBody2D, IDamageable
 
 	private void StartLedgeHang()
 	{
-		GD.Print("Start");
 		_isLedgeHanging = true;
 		_isWallSliding = false;
 

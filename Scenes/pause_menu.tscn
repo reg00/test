@@ -42,7 +42,7 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 48
 text = "Resume"
 
-[node name="MeinMenuButton" type="Button" parent="Root/Center/Panel/Layout"]
+[node name="MainMenuButton" type="Button" parent="Root/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 48
 text = "Main Menu"

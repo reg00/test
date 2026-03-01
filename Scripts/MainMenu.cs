@@ -5,13 +5,24 @@ public partial class MainMenu : Control
 	[Export(PropertyHint.File, "*.tscn")]
 	public string MainGameScene = "res://Scenes/main.tscn";
 
+	private Button _startButton;
+	private Button _quitButton;
+
 	public override void _Ready()
 	{
-		var start = GetNode<Button>("Center/Panel/Layout/StartButton");
-		var quit = GetNode<Button>("Center/Panel/Layout/QuitButton");
+		_startButton = GetNode<Button>("Center/Panel/Layout/StartButton");
+		_quitButton = GetNode<Button>("Center/Panel/Layout/QuitButton");
 
-		start.Pressed += _OnStartPressed;
-		quit.Pressed += _OnQuitPressed;
+		_startButton.Pressed += _OnStartPressed;
+		_quitButton.Pressed += _OnQuitPressed;
+	}
+
+	public override void _ExitTree()
+	{
+		if (_startButton != null)
+			_startButton.Pressed -= _OnStartPressed;
+		if (_quitButton != null)
+			_quitButton.Pressed -= _OnQuitPressed;
 	}
 
 	private void _OnStartPressed()

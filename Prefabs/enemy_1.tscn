@@ -12,8 +12,8 @@ size = Vector2(108, 126)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_663o1"]
 size = Vector2(124, 126)
 
-[node name="Enemy" type="CharacterBody2D"]
-collision_mask = 7
+[node name="Enemy" type="CharacterBody2D" groups=["enemy"]]
+collision_mask = 5
 script = ExtResource("1_pjquw")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]

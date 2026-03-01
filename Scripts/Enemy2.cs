@@ -21,6 +21,13 @@ public partial class Enemy2 : CharacterBody2D, IDamageable
 
 	// Если спрайт "смотрит влево" при Visual.Scale.X = +1 -> -1, иначе +1
 	[Export] public int AssetForward = -1;
+	[Export] public NodePath VisualPath = "Visual";
+	[Export] public NodePath AnimationPlayerPath = "AnimationPlayer";
+	[Export] public NodePath HitBoxPath = "Visual/HitBox";
+	[Export] public NodePath PlayerDetectorPath = "Visual/PlayerDetector";
+	[Export] public NodePath AttackRangePath = "Visual/AttackRange";
+	[Export] public NodePath WallRayPath = "Visual/WallRay";
+	[Export] public NodePath FloorRayPath = "Visual/FloorRay";
 
 	private int _hp;
 
@@ -54,16 +61,16 @@ public partial class Enemy2 : CharacterBody2D, IDamageable
 	{
 		_hp = MaxHp;
 
-		_visual = GetNode<Node2D>("Visual");
-		_anim = GetNode<AnimationPlayer>("AnimationPlayer");
+		_visual = GetNode<Node2D>(VisualPath);
+		_anim = GetNode<AnimationPlayer>(AnimationPlayerPath);
 
-		_hitBox = GetNode<Area2D>("Visual/HitBox");
+		_hitBox = GetNode<Area2D>(HitBoxPath);
 
-		_playerDetector = GetNode<Area2D>("Visual/PlayerDetector");
-		_attackRange = GetNode<Area2D>("Visual/AttackRange");
+		_playerDetector = GetNode<Area2D>(PlayerDetectorPath);
+		_attackRange = GetNode<Area2D>(AttackRangePath);
 
-		_wallRay = GetNode<RayCast2D>("Visual/WallRay");
-		_floorRay = GetNode<RayCast2D>("Visual/FloorRay");
+		_wallRay = GetNode<RayCast2D>(WallRayPath);
+		_floorRay = GetNode<RayCast2D>(FloorRayPath);
 
 		_playerDetector.BodyEntered += OnPlayerDetectorBodyEntered;
 		_playerDetector.BodyExited += OnPlayerDetectorBodyExited;
@@ -294,7 +301,10 @@ public partial class Enemy2 : CharacterBody2D, IDamageable
 	private void OnPlayerDetectorBodyExited(Node2D body)
 	{
 		if (_player == body)
+		{
 			_player = null;
+			_playerInAttackRange = false;
+		}
 	}
 
 	private void OnAttackRangeBodyEntered(Node2D body)
@@ -313,7 +323,10 @@ public partial class Enemy2 : CharacterBody2D, IDamageable
 	{
 		if (_isDead) return;
 
-		var owner = otherArea.Owner;
+		var owner = otherArea.Owner as Node;
+		if (owner == null || owner == this || !owner.IsInGroup("player"))
+			return;
+
 		if (owner is IDamageable dmg)
 			dmg.TakeDamage(AttackDamage);
 	}

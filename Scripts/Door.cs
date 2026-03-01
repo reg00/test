@@ -6,7 +6,6 @@ public partial class Door : Area2D
 	public string TargetLevel;
 
 	private Main _main;
-	private Area2D _door;
 
 	[Export]
 	public string TargetSpawnName = "";
@@ -25,8 +24,14 @@ public partial class Door : Area2D
 
 	private void OnBodyEntered(Node body)
 	{
-		if(!body.IsInGroup("player")) return;
-		
+		if (!body.IsInGroup("player")) return;
+
+		if (_main == null)
+		{
+			GD.PushError($"Door '{Name}': main scene is not Main, level transition skipped.");
+			return;
+		}
+
 		_main.ChangeLevel(TargetLevel, TargetSpawnName);
 	}
 }
